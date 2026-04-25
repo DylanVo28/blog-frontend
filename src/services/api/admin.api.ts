@@ -12,6 +12,12 @@ import type {
   AdminTransactionsResult,
   AdminUserListItem,
   AdminUsersResult,
+  ContentAgentConfig,
+  ContentAgentConfigsResult,
+  ContentAgentRunDetail,
+  ContentAgentRunsResult,
+  CreateContentAgentConfigPayload,
+  UpdateContentAgentConfigPayload,
 } from "@/types/admin.types";
 import type {
   AdminWithdrawalsResult,
@@ -146,5 +152,71 @@ export const adminApi = {
     );
 
     return normalizeWithdrawalRequest(response.data.data);
+  },
+
+  async getContentAgentConfigs() {
+    const response = await apiClient.get<ApiResponse<ContentAgentConfigsResult>>(
+      "/admin/content-agent/configs",
+    );
+
+    return response.data.data;
+  },
+
+  async createContentAgentConfig(payload: CreateContentAgentConfigPayload) {
+    const response = await apiClient.post<ApiResponse<ContentAgentConfig>>(
+      "/admin/content-agent/configs",
+      payload,
+    );
+
+    return response.data.data;
+  },
+
+  async updateContentAgentConfig(configId: string, payload: UpdateContentAgentConfigPayload) {
+    const response = await apiClient.patch<ApiResponse<ContentAgentConfig>>(
+      `/admin/content-agent/configs/${configId}`,
+      payload,
+    );
+
+    return response.data.data;
+  },
+
+  async triggerContentAgentRun(configId: string) {
+    const response = await apiClient.post<ApiResponse<ContentAgentRunDetail>>(
+      `/admin/content-agent/configs/${configId}/trigger`,
+      {},
+    );
+
+    return response.data.data;
+  },
+
+  async getContentAgentRuns(configId?: string, limit = 10) {
+    const response = await apiClient.get<ApiResponse<ContentAgentRunsResult>>(
+      "/admin/content-agent/runs",
+      {
+        params: {
+          configId,
+          limit,
+        },
+      },
+    );
+
+    return response.data.data;
+  },
+
+  async getContentAgentRun(runId: string) {
+    const response = await apiClient.get<ApiResponse<ContentAgentRunDetail>>(
+      `/admin/content-agent/runs/${runId}`,
+    );
+
+    return response.data.data;
+  },
+
+  async retryContentAgentRun(runId: string) {
+    const response = await apiClient.post<ApiResponse<ContentAgentRunDetail>>(
+      `/admin/content-agent/runs/${runId}/retry`,
+      {},
+    );
+
+    return response.data.data;
   },
 };

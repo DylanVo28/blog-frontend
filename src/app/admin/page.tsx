@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDownCircle,
   Ban,
+  Bot,
   CheckCircle2,
   Clock3,
   Coins,
@@ -12,7 +13,11 @@ import {
   FileText,
   Landmark,
   Loader2,
+  Play,
+  Plus,
+  RefreshCw,
   Search,
+  Settings2,
   ShieldCheck,
   ShieldOff,
   Sparkles,
@@ -31,6 +36,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/components/ui/toast";
 import { WithdrawalStatusBadge } from "@/components/wallet/WithdrawalStatusBadge";
 import { getApiErrorMessage } from "@/lib/api";
@@ -42,6 +48,11 @@ import type {
   AdminPostItem,
   AdminTransactionItem,
   AdminUserListItem,
+  ContentAgentConfig,
+  ContentAgentPublishMode,
+  ContentAgentRunSummary,
+  CreateContentAgentConfigPayload,
+  UpdateContentAgentConfigPayload,
 } from "@/types/admin.types";
 import type { AdminDepositItem } from "@/types/payment.types";
 import type { AdminWithdrawalItem } from "@/types/wallet.types";
@@ -91,6 +102,109 @@ function getPostStatusLabel(status: AdminPostItem["status"]) {
     default:
       return "Draft";
   }
+}
+
+function getContentAgentStatusLabel(status: ContentAgentRunSummary["status"]) {
+  switch (status) {
+    case "draft_created":
+      return "Draft created";
+    case "researching":
+      return "Researching";
+    case "generating":
+      return "Generating";
+    case "validating":
+      return "Validating";
+    case "skipped":
+      return "Skipped";
+    case "failed":
+      return "Failed";
+    default:
+      return "Queued";
+  }
+}
+
+function getContentAgentStatusClassName(status: ContentAgentRunSummary["status"]) {
+  switch (status) {
+    case "draft_created":
+      return "border-transparent bg-emerald-500/12 text-emerald-700";
+    case "failed":
+      return "border-transparent bg-destructive/10 text-destructive";
+    case "skipped":
+      return "border-transparent bg-amber-500/12 text-amber-700";
+    case "researching":
+    case "generating":
+    case "validating":
+      return "border-transparent bg-blue-500/12 text-blue-700";
+    default:
+      return "";
+  }
+}
+
+function getContentAgentPublishModeLabel(mode: ContentAgentPublishMode) {
+  switch (mode) {
+    case "auto_publish":
+      return "Auto publish";
+    case "review_required":
+      return "Review required";
+    default:
+      return "Draft only";
+  }
+}
+
+function getContentAgentTriggerLabel(source: ContentAgentRunSummary["triggerSource"]) {
+  return source === "schedule" ? "Scheduled" : "Manual";
+}
+
+function parseMultilineList(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function toBoundedInteger(value: string, fallback: number, min: number, max: number) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, Math.trunc(parsed)));
+}
+
+function formatAgentSchedule(config: ContentAgentConfig) {
+  return `${String(config.scheduleHour).padStart(2, "0")}:${String(config.scheduleMinute).padStart(2, "0")} ${config.timezone}`;
+}
+
+function getRunDuration(item: ContentAgentRunSummary) {
+  if (!item.startedAt || !item.finishedAt) {
+    return "Chưa hoàn tất";
+  }
+
+  const startedAt = new Date(item.startedAt).getTime();
+  const finishedAt = new Date(item.finishedAt).getTime();
+  const seconds = Math.max(0, Math.round((finishedAt - startedAt) / 1000));
+
+  return seconds < 60 ? `${seconds}s` : `${Math.round(seconds / 60)} phút`;
+}
+
+function createDefaultContentAgentName() {
+  const now = new Date();
+  const date = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, "0"),
+    String(now.getDate()).padStart(2, "0"),
+  ].join("-");
+  const time = [
+    String(now.getHours()).padStart(2, "0"),
+    String(now.getMinutes()).padStart(2, "0"),
+  ].join(":");
+
+  return `AI Research Agent ${date} ${time}`;
 }
 
 function SummaryCard({
@@ -755,10 +869,465 @@ function TreasuryPanel({
   );
 }
 
+type ContentAgentFormState = {
+  name: string;
+  enabled: boolean;
+  timezone: string;
+  scheduleHour: string;
+  scheduleMinute: string;
+  publishMode: ContentAgentPublishMode;
+  systemAuthorId: string;
+  topics: string;
+  sourceAllowlist: string;
+  writingStyle: string;
+  maxArticleAgeHours: string;
+  maxResearchItems: string;
+};
+
+function createContentAgentFormState(config?: ContentAgentConfig): ContentAgentFormState {
+  return {
+    name: config?.name ?? "",
+    enabled: config?.enabled ?? false,
+    timezone: config?.timezone ?? "Asia/Ho_Chi_Minh",
+    scheduleHour: String(config?.scheduleHour ?? 19),
+    scheduleMinute: String(config?.scheduleMinute ?? 0),
+    publishMode: config?.publishMode ?? "draft_only",
+    systemAuthorId: config?.systemAuthorId ?? "",
+    topics: config?.topics.join("\n") ?? "",
+    sourceAllowlist: config?.sourceAllowlist.join("\n") ?? "",
+    writingStyle: config?.writingStyle ?? "",
+    maxArticleAgeHours: String(config?.maxArticleAgeHours ?? 24),
+    maxResearchItems: String(config?.maxResearchItems ?? 20),
+  };
+}
+
+function ContentAgentPanel({
+  configs,
+  selectedConfig,
+  selectedConfigId,
+  runs,
+  users,
+  form,
+  isCreating,
+  isSaving,
+  isTriggering,
+  isRunsLoading,
+  isRunsFetching,
+  retryingRunId,
+  onSelectedConfigChange,
+  onFormChange,
+  onCreate,
+  onSave,
+  onTrigger,
+  onRefreshRuns,
+  onRetryRun,
+}: {
+  configs: ContentAgentConfig[];
+  selectedConfig: ContentAgentConfig | undefined;
+  selectedConfigId: string | null;
+  runs: ContentAgentRunSummary[];
+  users: AdminUserListItem[];
+  form: ContentAgentFormState;
+  isCreating: boolean;
+  isSaving: boolean;
+  isTriggering: boolean;
+  isRunsLoading: boolean;
+  isRunsFetching: boolean;
+  retryingRunId: string | null;
+  onSelectedConfigChange: (configId: string) => void;
+  onFormChange: <Key extends keyof ContentAgentFormState>(
+    key: Key,
+    value: ContentAgentFormState[Key],
+  ) => void;
+  onCreate: () => void;
+  onSave: () => void;
+  onTrigger: () => void;
+  onRefreshRuns: () => void;
+  onRetryRun: (runId: string) => void;
+}) {
+  const authorOptions = users.filter((item) => item.role === "admin" || item.role === "author");
+  const topicItems = parseMultilineList(form.topics);
+  const sourceItems = parseMultilineList(form.sourceAllowlist);
+  const missingRequirements = [
+    !form.systemAuthorId ? "Chưa chọn system author" : null,
+    !sourceItems.length ? "Chưa có source allowlist" : null,
+    !topicItems.length ? "Chưa có topics" : null,
+  ].filter(Boolean);
+  const selectClassName =
+    "flex h-11 w-full rounded-[1.4rem] border border-input bg-card/75 px-4 py-2 text-sm shadow-sm outline-none transition-colors focus-visible:border-primary/45 focus-visible:ring-4 focus-visible:ring-ring/15 disabled:cursor-not-allowed disabled:opacity-50";
+  const labelClassName = "text-sm font-semibold text-foreground";
+  const helperClassName = "text-xs leading-5 text-muted-foreground";
+
+  if (!configs.length) {
+    return (
+      <Card className="border-dashed border-border/80">
+        <CardHeader className="items-center text-center">
+          <div className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Bot className="size-6" />
+          </div>
+          <CardTitle>Chưa có cấu hình content agent</CardTitle>
+          <CardDescription className="max-w-xl">
+            Tạo agent đầu tiên để cấu hình lịch research tự động lúc 19:00, nguồn RSS/feed,
+            topics và author hệ thống.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex justify-center">
+          <Button type="button" disabled={isCreating} onClick={onCreate}>
+            {isCreating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            Tạo agent mới
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-3">
+        <SummaryCard
+          title="Agent configs"
+          value={configs.length.toString()}
+          description={selectedConfig ? `Đang chọn ${selectedConfig.name}.` : "Chọn config để thao tác."}
+          icon={Bot}
+        />
+        <SummaryCard
+          title="Lịch chạy"
+          value={selectedConfig ? formatAgentSchedule(selectedConfig) : "--:--"}
+          description="Mặc định hệ thống sẽ chạy research vào 19:00 theo timezone config."
+          icon={Clock3}
+        />
+        <SummaryCard
+          title="Runs gần nhất"
+          value={runs.length.toString()}
+          description={
+            runs[0]
+              ? `Run mới nhất: ${getContentAgentStatusLabel(runs[0].status)}.`
+              : "Chưa có run nào cho config này."
+          }
+          icon={Sparkles}
+        />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <Card>
+          <CardHeader className="space-y-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={form.enabled ? "success" : "outline"}>
+                    {form.enabled ? "Enabled" : "Disabled"}
+                  </Badge>
+                  <Badge variant="outline">{getContentAgentPublishModeLabel(form.publishMode)}</Badge>
+                </div>
+                <CardTitle className="mt-3 text-2xl">AI Agent Auto Research</CardTitle>
+                <CardDescription className="mt-2 max-w-2xl leading-6">
+                  Cấu hình nguồn RSS/feed, chủ đề, author hệ thống và mode xuất bản. Trigger thủ công
+                  dùng cùng pipeline với job 19:00 nên phù hợp để kiểm thử trước khi bật scheduler.
+                </CardDescription>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" disabled={isCreating} onClick={onCreate}>
+                  {isCreating ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+                  Tạo agent mới
+                </Button>
+                <Button type="button" variant="outline" disabled={isSaving} onClick={onSave}>
+                  {isSaving ? <Loader2 className="size-4 animate-spin" /> : <Settings2 className="size-4" />}
+                  Lưu cấu hình
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!selectedConfig || isTriggering || Boolean(missingRequirements.length)}
+                  onClick={onTrigger}
+                >
+                  {isTriggering ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
+                  Trigger ngay
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            {missingRequirements.length ? (
+              <div className="rounded-[1.4rem] border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-800">
+                Agent chưa sẵn sàng chạy: {missingRequirements.join(". ")}.
+              </div>
+            ) : null}
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="space-y-2">
+                <span className={labelClassName}>Config</span>
+                <select
+                  value={selectedConfigId ?? ""}
+                  onChange={(event) => onSelectedConfigChange(event.target.value)}
+                  className={selectClassName}
+                >
+                  {configs.map((config) => (
+                    <option key={config.id} value={config.id}>
+                      {config.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className={labelClassName}>Tên agent</span>
+                <Input
+                  value={form.name}
+                  onChange={(event) => onFormChange("name", event.target.value)}
+                  placeholder="Daily AI Research Agent"
+                />
+              </label>
+
+              <label className="space-y-2">
+                <span className={labelClassName}>System author</span>
+                <select
+                  value={form.systemAuthorId}
+                  onChange={(event) => onFormChange("systemAuthorId", event.target.value)}
+                  className={selectClassName}
+                >
+                  <option value="">Chọn author/admin để đứng tên bài draft</option>
+                  {authorOptions.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {getUserLabel(item)} ({item.role})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className={labelClassName}>Publish mode</span>
+                <select
+                  value={form.publishMode}
+                  onChange={(event) =>
+                    onFormChange("publishMode", event.target.value as ContentAgentPublishMode)
+                  }
+                  className={selectClassName}
+                >
+                  <option value="draft_only">Draft only</option>
+                  <option value="review_required">Review required</option>
+                  <option value="auto_publish">Auto publish</option>
+                </select>
+              </label>
+
+              <label className="space-y-2">
+                <span className={labelClassName}>Timezone</span>
+                <Input
+                  value={form.timezone}
+                  onChange={(event) => onFormChange("timezone", event.target.value)}
+                  placeholder="Asia/Ho_Chi_Minh"
+                />
+              </label>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className={labelClassName}>Giờ chạy</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={form.scheduleHour}
+                    onChange={(event) => onFormChange("scheduleHour", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className={labelClassName}>Phút chạy</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={form.scheduleMinute}
+                    onChange={(event) => onFormChange("scheduleMinute", event.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-2">
+                  <span className={labelClassName}>Article age tối đa</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={168}
+                    value={form.maxArticleAgeHours}
+                    onChange={(event) => onFormChange("maxArticleAgeHours", event.target.value)}
+                  />
+                </label>
+                <label className="space-y-2">
+                  <span className={labelClassName}>Research items tối đa</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={form.maxResearchItems}
+                    onChange={(event) => onFormChange("maxResearchItems", event.target.value)}
+                  />
+                </label>
+              </div>
+
+              <label className="flex h-11 items-center gap-3 self-end rounded-[1.4rem] border border-border/70 bg-card/75 px-4 text-sm font-semibold text-foreground">
+                <input
+                  type="checkbox"
+                  checked={form.enabled}
+                  onChange={(event) => onFormChange("enabled", event.target.checked)}
+                  className="size-4 accent-primary"
+                />
+                Bật chạy scheduler tự động
+              </label>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <label className="space-y-2">
+                <span className={labelClassName}>Topics</span>
+                <Textarea
+                  value={form.topics}
+                  onChange={(event) => onFormChange("topics", event.target.value)}
+                  placeholder={"AI agents\nLLM infrastructure\nProduct engineering"}
+                />
+                <span className={helperClassName}>
+                  Có thể nhập mỗi dòng một topic hoặc phân tách bằng dấu phẩy.
+                </span>
+              </label>
+
+              <label className="space-y-2">
+                <span className={labelClassName}>Source allowlist</span>
+                <Textarea
+                  value={form.sourceAllowlist}
+                  onChange={(event) => onFormChange("sourceAllowlist", event.target.value)}
+                  placeholder={"https://techcrunch.com/feed/\nhttps://www.theverge.com/rss/index.xml"}
+                />
+                <span className={helperClassName}>
+                  Backend chỉ research từ các URL trong allowlist để kiểm soát nguồn bài.
+                </span>
+              </label>
+            </div>
+
+            <label className="block space-y-2">
+              <span className={labelClassName}>Writing style</span>
+              <Textarea
+                value={form.writingStyle}
+                onChange={(event) => onFormChange("writingStyle", event.target.value)}
+                placeholder="Viết tiếng Việt, giọng phân tích thực tế, có citations rõ nguồn."
+              />
+            </label>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-2xl">Run history</CardTitle>
+                <CardDescription className="mt-2 leading-6">
+                  Theo dõi các lần agent đã enqueue, trạng thái xử lý và draft được tạo.
+                </CardDescription>
+              </div>
+              <Button type="button" variant="outline" size="sm" disabled={isRunsFetching} onClick={onRefreshRuns}>
+                <RefreshCw className={isRunsFetching ? "size-4 animate-spin" : "size-4"} />
+                Refresh
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isRunsLoading ? (
+              <div className="flex min-h-[320px] items-center justify-center">
+                <LoadingSpinner label="Đang tải content agent runs..." />
+              </div>
+            ) : !runs.length ? (
+              <EmptyState
+                icon={<Clock3 className="size-6" />}
+                title="Chưa có run"
+                description="Bấm Trigger ngay sau khi cấu hình đủ author, topics và source allowlist."
+              />
+            ) : (
+              <ScrollArea className="h-[720px] pr-3">
+                <div className="space-y-3">
+                  {runs.map((item) => {
+                    const isRetryable = item.status === "failed" || item.status === "skipped";
+                    const isRetrying = retryingRunId === item.id;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="rounded-[1.4rem] border border-border/70 bg-card/70 p-4"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge className={getContentAgentStatusClassName(item.status)}>
+                                {getContentAgentStatusLabel(item.status)}
+                              </Badge>
+                              <Badge variant="outline">{getContentAgentTriggerLabel(item.triggerSource)}</Badge>
+                            </div>
+                            <p className="font-mono text-xs text-muted-foreground">
+                              {item.id.slice(0, 8)} • {formatDateTime(item.scheduledFor)}
+                            </p>
+                          </div>
+
+                          {isRetryable ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={Boolean(retryingRunId)}
+                              onClick={() => onRetryRun(item.id)}
+                            >
+                              {isRetrying ? (
+                                <Loader2 className="size-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="size-4" />
+                              )}
+                              Retry
+                            </Button>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-4 space-y-2 text-sm leading-6 text-muted-foreground">
+                          <p>
+                            Draft:{" "}
+                            <span className="font-semibold text-foreground">
+                              {item.draftTitle || "Chưa tạo draft"}
+                            </span>
+                          </p>
+                          {item.draftPostId ? (
+                            <p>
+                              Post ID: <span className="font-mono text-foreground">{item.draftPostId}</span>
+                            </p>
+                          ) : null}
+                          <p>
+                            Thời lượng:{" "}
+                            <span className="font-semibold text-foreground">{getRunDuration(item)}</span>
+                          </p>
+                          <p>Cập nhật {formatRelativeTime(item.updatedAt)}</p>
+                        </div>
+
+                        {item.failureReason ? (
+                          <div className="mt-3 rounded-[1.1rem] border border-destructive/25 bg-destructive/8 p-3 text-sm leading-6 text-destructive">
+                            {item.failureReason}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const queryClient = useQueryClient();
   const [userSearch, setUserSearch] = useState("");
   const [postSearch, setPostSearch] = useState("");
+  const [selectedAgentConfigId, setSelectedAgentConfigId] = useState<string | null>(null);
+  const [agentFormConfigId, setAgentFormConfigId] = useState<string | null>(null);
+  const [agentForm, setAgentForm] = useState<ContentAgentFormState>(() =>
+    createContentAgentFormState(),
+  );
   const deferredUserSearch = useDeferredValue(userSearch);
   const deferredPostSearch = useDeferredValue(postSearch);
 
@@ -790,6 +1359,28 @@ export default function AdminPage() {
   const depositsQuery = useQuery({
     queryKey: ["payment", "admin", "pending-deposits"],
     queryFn: () => paymentApi.getPendingDeposits(),
+  });
+
+  const contentAgentConfigsQuery = useQuery({
+    queryKey: ["admin", "content-agent", "configs"],
+    queryFn: () => adminApi.getContentAgentConfigs(),
+  });
+
+  const contentAgentConfigs = contentAgentConfigsQuery.data?.items ?? [];
+  const effectiveAgentConfigId =
+    selectedAgentConfigId && contentAgentConfigs.some((item) => item.id === selectedAgentConfigId)
+      ? selectedAgentConfigId
+      : contentAgentConfigs[0]?.id ?? null;
+  const selectedAgentConfig = contentAgentConfigs.find((item) => item.id === effectiveAgentConfigId);
+  const currentAgentForm =
+    selectedAgentConfig && agentFormConfigId !== selectedAgentConfig.id
+      ? createContentAgentFormState(selectedAgentConfig)
+      : agentForm;
+
+  const contentAgentRunsQuery = useQuery({
+    queryKey: ["admin", "content-agent", "runs", effectiveAgentConfigId],
+    queryFn: () => adminApi.getContentAgentRuns(effectiveAgentConfigId ?? undefined, 10),
+    enabled: Boolean(effectiveAgentConfigId),
   });
 
   const userModerationMutation = useMutation({
@@ -856,12 +1447,65 @@ export default function AdminPage() {
     },
   });
 
+  const contentAgentCreateMutation = useMutation({
+    mutationFn: async (payload: CreateContentAgentConfigPayload) =>
+      adminApi.createContentAgentConfig(payload),
+    onSuccess: (config) => {
+      toast.success("Đã tạo content agent mới.");
+      setSelectedAgentConfigId(config.id);
+      setAgentFormConfigId(config.id);
+      setAgentForm(createContentAgentFormState(config));
+      void queryClient.invalidateQueries({ queryKey: ["admin", "content-agent", "configs"] });
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Không thể tạo content agent."));
+    },
+  });
+
+  const contentAgentConfigMutation = useMutation({
+    mutationFn: async (input: { configId: string; payload: UpdateContentAgentConfigPayload }) =>
+      adminApi.updateContentAgentConfig(input.configId, input.payload),
+    onSuccess: (config) => {
+      toast.success("Đã lưu cấu hình content agent.");
+      setAgentFormConfigId(config.id);
+      setAgentForm(createContentAgentFormState(config));
+      void queryClient.invalidateQueries({ queryKey: ["admin", "content-agent", "configs"] });
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Không thể lưu cấu hình content agent."));
+    },
+  });
+
+  const contentAgentTriggerMutation = useMutation({
+    mutationFn: async (configId: string) => adminApi.triggerContentAgentRun(configId),
+    onSuccess: () => {
+      toast.success("Đã enqueue content agent run.");
+      void queryClient.invalidateQueries({ queryKey: ["admin", "content-agent", "runs"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "posts"] });
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Không thể trigger content agent."));
+    },
+  });
+
+  const contentAgentRetryMutation = useMutation({
+    mutationFn: async (runId: string) => adminApi.retryContentAgentRun(runId),
+    onSuccess: () => {
+      toast.success("Đã enqueue retry cho content agent run.");
+      void queryClient.invalidateQueries({ queryKey: ["admin", "content-agent", "runs"] });
+    },
+    onError: (error) => {
+      toast.error(getApiErrorMessage(error, "Không thể retry content agent run."));
+    },
+  });
+
   const overview: AdminDashboardMetrics | undefined = dashboardQuery.data;
   const users = usersQuery.data?.items ?? [];
   const posts = postsQuery.data?.items ?? [];
   const transactions = transactionsQuery.data?.items ?? [];
   const withdrawals = withdrawalsQuery.data?.items ?? [];
   const deposits = depositsQuery.data?.items ?? [];
+  const contentAgentRuns = contentAgentRunsQuery.data?.items ?? [];
   const filteredUsers = users.filter((item) => {
     const query = deferredUserSearch.trim().toLowerCase();
 
@@ -886,6 +1530,40 @@ export default function AdminPage() {
   });
   const publishedPosts = posts.filter((item) => item.status === "published").length;
   const bannedUsers = users.filter((item) => item.isBanned).length;
+  const buildContentAgentPayload = (): UpdateContentAgentConfigPayload => ({
+    name: currentAgentForm.name.trim() || selectedAgentConfig?.name || "Daily AI Research Agent",
+    enabled: currentAgentForm.enabled,
+    timezone: currentAgentForm.timezone.trim() || "Asia/Ho_Chi_Minh",
+    scheduleHour: toBoundedInteger(
+      currentAgentForm.scheduleHour,
+      selectedAgentConfig?.scheduleHour ?? 19,
+      0,
+      23,
+    ),
+    scheduleMinute: toBoundedInteger(
+      currentAgentForm.scheduleMinute,
+      selectedAgentConfig?.scheduleMinute ?? 0,
+      0,
+      59,
+    ),
+    topics: parseMultilineList(currentAgentForm.topics),
+    sourceAllowlist: parseMultilineList(currentAgentForm.sourceAllowlist),
+    publishMode: currentAgentForm.publishMode,
+    systemAuthorId: currentAgentForm.systemAuthorId || null,
+    writingStyle: currentAgentForm.writingStyle.trim() || null,
+    maxArticleAgeHours: toBoundedInteger(
+      currentAgentForm.maxArticleAgeHours,
+      selectedAgentConfig?.maxArticleAgeHours ?? 24,
+      1,
+      168,
+    ),
+    maxResearchItems: toBoundedInteger(
+      currentAgentForm.maxResearchItems,
+      selectedAgentConfig?.maxResearchItems ?? 20,
+      1,
+      50,
+    ),
+  });
 
   if (
     dashboardQuery.isLoading &&
@@ -961,6 +1639,7 @@ export default function AdminPage() {
             <TabsTrigger value="posts">Posts</TabsTrigger>
             <TabsTrigger value="transactions">Transactions</TabsTrigger>
             <TabsTrigger value="treasury">Treasury</TabsTrigger>
+            <TabsTrigger value="agent">AI Agent</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -1143,6 +1822,90 @@ export default function AdminPage() {
                     withdrawalId,
                     action: "reject",
                   });
+                }}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="agent">
+            {contentAgentConfigsQuery.isLoading ? (
+              <div className="flex min-h-[40vh] items-center justify-center">
+                <LoadingSpinner label="Đang tải AI agent config..." />
+              </div>
+            ) : (
+              <ContentAgentPanel
+                configs={contentAgentConfigs}
+                selectedConfig={selectedAgentConfig}
+                selectedConfigId={effectiveAgentConfigId}
+                runs={contentAgentRuns}
+                users={users}
+                form={currentAgentForm}
+                isCreating={contentAgentCreateMutation.isPending}
+                isSaving={contentAgentConfigMutation.isPending}
+                isTriggering={contentAgentTriggerMutation.isPending}
+                isRunsLoading={contentAgentRunsQuery.isLoading}
+                isRunsFetching={contentAgentRunsQuery.isFetching}
+                retryingRunId={contentAgentRetryMutation.variables ?? null}
+                onSelectedConfigChange={(configId) => {
+                  setSelectedAgentConfigId(configId);
+                  setAgentFormConfigId(configId);
+                  const nextConfig = contentAgentConfigs.find((item) => item.id === configId);
+
+                  if (nextConfig) {
+                    setAgentForm(createContentAgentFormState(nextConfig));
+                  }
+                }}
+                onFormChange={(key, value) => {
+                  setAgentFormConfigId(effectiveAgentConfigId);
+                  setAgentForm(() => ({
+                    ...currentAgentForm,
+                    [key]: value,
+                  }));
+                }}
+                onCreate={() => {
+                  const name = window.prompt("Tên AI agent mới", createDefaultContentAgentName());
+
+                  if (name === null) {
+                    return;
+                  }
+
+                  const trimmedName = name.trim();
+
+                  if (!trimmedName) {
+                    toast.error("Tên AI agent không được để trống.");
+                    return;
+                  }
+
+                  const payload = buildContentAgentPayload();
+
+                  void contentAgentCreateMutation.mutateAsync({
+                    ...payload,
+                    name: trimmedName,
+                    enabled: false,
+                  });
+                }}
+                onSave={() => {
+                  if (!effectiveAgentConfigId) {
+                    return;
+                  }
+
+                  void contentAgentConfigMutation.mutateAsync({
+                    configId: effectiveAgentConfigId,
+                    payload: buildContentAgentPayload(),
+                  });
+                }}
+                onTrigger={() => {
+                  if (!effectiveAgentConfigId) {
+                    return;
+                  }
+
+                  void contentAgentTriggerMutation.mutateAsync(effectiveAgentConfigId);
+                }}
+                onRefreshRuns={() => {
+                  void contentAgentRunsQuery.refetch();
+                }}
+                onRetryRun={(runId) => {
+                  void contentAgentRetryMutation.mutateAsync(runId);
                 }}
               />
             )}

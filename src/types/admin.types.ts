@@ -64,3 +64,119 @@ export interface AdminPostItem {
 export interface AdminPostsResult {
   items: AdminPostItem[];
 }
+
+export type ContentAgentPublishMode = "draft_only" | "auto_publish" | "review_required";
+
+export type ContentAgentRunStatus =
+  | "queued"
+  | "researching"
+  | "generating"
+  | "validating"
+  | "draft_created"
+  | "skipped"
+  | "failed";
+
+export type ContentAgentTriggerSource = "schedule" | "manual";
+
+export interface ContentAgentCitation {
+  title: string;
+  url: string;
+  domain: string;
+}
+
+export interface ContentAgentConfig {
+  id: string;
+  name: string;
+  enabled: boolean;
+  timezone: string;
+  scheduleHour: number;
+  scheduleMinute: number;
+  topics: string[];
+  sourceAllowlist: string[];
+  publishMode: ContentAgentPublishMode;
+  systemAuthorId: string | null;
+  defaultCategoryId: string | null;
+  defaultTagIds: string[];
+  writingStyle: string | null;
+  maxArticleAgeHours: number;
+  maxResearchItems: number;
+  lastScheduledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContentAgentConfigsResult {
+  items: ContentAgentConfig[];
+}
+
+export interface ContentAgentRunSummary {
+  id: string;
+  configId: string;
+  scheduledFor: string;
+  triggerSource: ContentAgentTriggerSource;
+  status: ContentAgentRunStatus;
+  failureReason: string | null;
+  selectedResearchItemId: string | null;
+  draftPostId: string | null;
+  draftTitle: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContentAgentRunsResult {
+  items: ContentAgentRunSummary[];
+}
+
+export interface ContentAgentResearchItem {
+  id: string;
+  runId: string;
+  sourceType: string;
+  sourceUrl: string;
+  canonicalUrl: string;
+  sourceDomain: string;
+  title: string;
+  summary: string | null;
+  contentText: string | null;
+  topic: string | null;
+  publishedAt: string | null;
+  finalScore: number;
+  rankingReasons: Record<string, unknown>;
+  isSelected: boolean;
+  createdAt: string;
+}
+
+export interface ContentAgentRunDetail {
+  run: ContentAgentRunSummary & {
+    idempotencyKey: string;
+    draftExcerpt: string | null;
+    draftContent: Record<string, unknown> | null;
+    draftContentPlain: string | null;
+    citations: ContentAgentCitation[];
+    validationResult: Record<string, unknown>;
+    metadata: Record<string, unknown>;
+  };
+  researchItems: ContentAgentResearchItem[];
+}
+
+export interface UpdateContentAgentConfigPayload {
+  name?: string;
+  enabled?: boolean;
+  timezone?: string;
+  scheduleHour?: number;
+  scheduleMinute?: number;
+  topics?: string[];
+  sourceAllowlist?: string[];
+  publishMode?: ContentAgentPublishMode;
+  systemAuthorId?: string | null;
+  defaultCategoryId?: string | null;
+  defaultTagIds?: string[];
+  writingStyle?: string | null;
+  maxArticleAgeHours?: number;
+  maxResearchItems?: number;
+}
+
+export interface CreateContentAgentConfigPayload extends UpdateContentAgentConfigPayload {
+  name: string;
+}
