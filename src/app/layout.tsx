@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     title: APP_NAME,
     description: APP_DESCRIPTION,
     siteName: APP_NAME,
-    locale: "vi_VN",
+    locale: "en_US",
     type: "website",
   },
   twitter: {
@@ -44,7 +44,7 @@ interface RootLayoutProps {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html
-      lang="vi"
+      lang="en"
       suppressHydrationWarning
       className={`${fontSans.variable} ${fontSerif.variable}`}
     >

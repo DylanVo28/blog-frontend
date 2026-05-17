@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { LoginForm } from "@/components/auth/LoginForm";
+
+export const metadata: Metadata = {
+  title: "Log in to Inkline",
+  description: "Log in with email, Google, or GitHub to keep writing, reading, and asking questions on Inkline.",
+};
+
 
 export default function LoginPage() {
   return (

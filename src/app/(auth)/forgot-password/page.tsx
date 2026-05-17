@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { ForgotPasswordForm } from "@/components/auth/ForgotPasswordForm";
+
+export const metadata: Metadata = {
+  title: "Recover your Inkline account",
+  description: "Request a password reset link and securely regain access to your Inkline account.",
+};
+
 
 export default function ForgotPasswordPage() {
   return (

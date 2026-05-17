@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { ResetPasswordForm } from "@/components/auth/ResetPasswordForm";
+
+export const metadata: Metadata = {
+  title: "Reset your Inkline password",
+  description: "Set a new password for your Inkline account using a verified reset token.",
+};
 
 function ResetPasswordFallback() {
   return (

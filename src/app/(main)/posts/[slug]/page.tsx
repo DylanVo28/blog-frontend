@@ -25,7 +25,7 @@ export async function generateMetadata({
 
   return {
     title: post.title,
-    description: post.excerpt ?? post.contentPlain ?? "Chi tiết bài viết",
+    description: post.excerpt ?? post.contentPlain ?? "Article details",
     alternates: {
       canonical: `/posts/${post.slug}`,
     },

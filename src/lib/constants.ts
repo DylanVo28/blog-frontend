@@ -10,7 +10,7 @@ const DEFAULT_API_ORIGIN = IS_PRODUCTION
 
 export const APP_NAME = "Inkline";
 export const APP_DESCRIPTION =
-  "Blog platform frontend foundation cho hệ thống bài viết, comment miễn phí và câu hỏi trả phí.";
+  "A modern blogging platform for articles, free comments, and paid questions.";
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? DEFAULT_SITE_URL;
 

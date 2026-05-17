@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     description: APP_DESCRIPTION,
     url: "/",
     siteName: APP_NAME,
-    locale: "vi_VN",
+    locale: "en_US",
     type: "website",
     images: [
       {
@@ -37,8 +37,9 @@ export const metadata: Metadata = {
 export default function HomePage() {
   return (
     <PostFeed
-      title="Bài viết mới nhất"
-      description="Feed phase 3 đã nối API thật, author enrichment, tag filter và infinite scroll để bạn bắt đầu test hệ bài viết end-to-end."
+      title="Latest articles"
+      description="A live article feed with author enrichment, tag filtering, and infinite scroll for an end-to-end reading experience."
     />
   );
 }
+

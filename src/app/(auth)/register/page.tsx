@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { RegisterForm } from "@/components/auth/RegisterForm";
+
+export const metadata: Metadata = {
+  title: "Create an Inkline account",
+  description: "Join Inkline with email verification, then publish articles, comment, and ask paid questions.",
+};
+
 
 export default function RegisterPage() {
   return (

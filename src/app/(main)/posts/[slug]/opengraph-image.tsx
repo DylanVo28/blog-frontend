@@ -53,16 +53,16 @@ export default async function PostOpenGraphImage({
 
         <div style={{ display: "flex", flexDirection: "column", gap: "22px", maxWidth: "980px" }}>
           <div style={{ fontSize: 76, lineHeight: 1.04, fontWeight: 700 }}>
-            {post?.title ?? "Chi tiết bài viết"}
+            {post?.title ?? "Article details"}
           </div>
           <div style={{ fontSize: 30, lineHeight: 1.45, color: "rgb(87, 91, 107)" }}>
-            {post?.excerpt ?? post?.contentPlain ?? "Bài viết trên Inkline."}
+            {post?.excerpt ?? post?.contentPlain ?? "An article on Inkline."}
           </div>
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 28 }}>
           <div>{post?.author.displayName ?? "Inkline"}</div>
-          <div>{post?.readingTime ? `${post.readingTime} phút đọc` : "Story"}</div>
+          <div>{post?.readingTime ? `${post.readingTime} min read` : "Story"}</div>
         </div>
       </div>
     ),

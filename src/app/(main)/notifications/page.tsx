@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import { BellRing } from "lucide-react";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { NotificationList } from "@/components/notifications/NotificationList";
+
+export const metadata: Metadata = {
+  title: "Notifications",
+  description: "View real-time Inkline updates for comments, paid questions, answers, and wallet activity.",
+};
+
 
 export default function NotificationsPage() {
   return (

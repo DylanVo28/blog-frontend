@@ -41,7 +41,7 @@ export async function generateMetadata({
     title: `${profile.profile.displayName}`,
     description:
       profile.profile.bio ??
-      `${profile.profile.displayName} tren Inkline: ${profile.stats.postsCount} bai viet va ${profile.stats.questionsCount} cau hoi.`,
+      `${profile.profile.displayName} on Inkline: ${profile.stats.postsCount} articles and ${profile.stats.questionsCount} questions.`,
     alternates: {
       canonical: `/profile/${canonicalSlug}`,
     },
@@ -49,7 +49,7 @@ export async function generateMetadata({
       title: profile.profile.displayName,
       description:
         profile.profile.bio ??
-        `${profile.profile.displayName} tren Inkline`,
+        `${profile.profile.displayName} on Inkline`,
       images: profile.profile.avatarUrl ? [profile.profile.avatarUrl] : [],
     },
   };
