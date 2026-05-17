@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Compass, Home, LayoutDashboard, UserRound, Wallet } from "lucide-react";
+import { Bell, Clapperboard, Compass, Home, LayoutDashboard, UserRound, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -18,6 +18,7 @@ export function BottomNavigation() {
     ? [
         { href: "/", label: "Home", icon: Home },
         { href: "/explore", label: "Explore", icon: Compass },
+        { href: "/movies", label: "Movies", icon: Clapperboard },
         { href: "/wallet", label: "Wallet", icon: Wallet },
         { href: "/notifications", label: "Alerts", icon: Bell },
         {
@@ -29,6 +30,7 @@ export function BottomNavigation() {
     : [
         { href: "/", label: "Home", icon: Home },
         { href: "/explore", label: "Explore", icon: Compass },
+        { href: "/movies", label: "Movies", icon: Clapperboard },
         { href: "/login", label: "Login", icon: UserRound },
         { href: "/register", label: "Join", icon: LayoutDashboard },
       ];

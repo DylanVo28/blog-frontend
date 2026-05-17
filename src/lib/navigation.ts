@@ -1,6 +1,7 @@
 export const primaryNavigation = [
   { href: "/", label: "Trang chủ" },
   { href: "/explore", label: "Khám phá" },
+  { href: "/movies", label: "Movies" },
   { href: "/wallet", label: "Ví" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/notifications", label: "Thông báo" },
